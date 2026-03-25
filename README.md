@@ -19,12 +19,29 @@ This public version **does not include automated trading**.
 
 - `/projectx-login` - Save and verify your ProjectX username and API key
 - `/projectx-logout` - Remove saved ProjectX credentials
-- `/accounts` - List your visible ProjectX accounts
-- `/trades` - Show reconstructed completed round-trip trades
+
+- `/accounts` - List your visible ProjectX accounts  
+
+  <img src="https://i.imgur.com/tNhRJ24.png" width="300">
+
+- `/trades` - Show reconstructed completed round-trip trades  
+
+  <img src="https://i.imgur.com/wdtioZa.jpeg" width="300">
+
 - `/latesttrades` - Show latest completed trades
-- `/analysis` - Generate analytics charts from trade history
-- `/monthly` - Generate a monthly P/L calendar image
-- `/tradefeed-start` - Start the live trade poller in the current channel
+
+- `/analysis` - Generate analytics charts from trade history  
+
+  <img src="https://i.imgur.com/WzpBqvf.png" width="300">
+
+- `/monthly` - Generate a monthly P/L calendar image  
+
+  <img src="https://i.imgur.com/wfNMSjm.png" width="500">
+
+- `/tradefeed-start` - Start the live trade poller in the current channel  
+
+  <img src="https://i.imgur.com/KwoMmg1.jpeg" width="300">
+
 - `/tradefeed-stop` - Stop the live trade poller in the current channel
 - `/tradefeed-status` - Show trade feed status for the current channel
 
@@ -33,6 +50,16 @@ This public version **does not include automated trading**.
 - Node.js 20+
 - A Discord application and bot token
 - A ProjectX account and API key
+
+## Hosting Recommendation
+
+If you want to run the bot 24/7, I recommend using **Bisect Hosting**.
+
+- Plans start at **$2/month**
+- Simple setup for Node.js bots
+- Great uptime for small projects
+
+https://www.bisecthosting.com/
 
 ## Setup
 
@@ -95,6 +122,35 @@ PROJECTX_USERNAME=your_projectx_username
 PROJECTX_API_KEY=your_projectx_api_key
 PROJECTX_BASE_URL=https://api.topstepx.com
 ```
+
+## ProjectX API Access
+
+To use this bot, you will need access to the ProjectX API.
+
+- You can subscribe to the API here ($29/month):  
+  https://dashboard.projectx.com/dashboard  
+
+- Use discount code: `topstep` (requires an active Topstep subscription)
+
+- After subscribing, you can generate your API key here:  
+  https://topstepx.com/settings
+## Security Notice
+
+This bot is primarily intended for **single-user use**.
+
+While it technically supports multiple users, storing and handling multiple ProjectX API keys introduces **significant security risk**.
+
+- API keys grant access to sensitive account data
+- Improper storage or exposure could compromise user accounts
+- Anyone with access to your bot environment or storage files may be able to retrieve these keys
+
+If you choose to use this bot in a multi-user environment:
+
+- Do so at your own risk
+- Ensure your hosting environment is secure
+- Avoid sharing or exposing API keys in logs, files, or public repositories
+
+It is strongly recommended to use this bot **only for your own personal account** unless you fully understand and accept the security implications.
 
 ## Disclaimer
 
