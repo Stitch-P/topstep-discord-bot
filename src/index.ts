@@ -3773,7 +3773,7 @@ While multiple users are supported, storing API keys for others introduces secur
 By using this command, you acknowledge:
 
 - Your API key is stored by this bot for functionality
-- The developer is not responsible for any leaked, exposed, corrupted, invalid, or "scrambled" API keys
+- The original developer is not responsible for any leaked or exposed API keys. They are not scrambled. The bot host can see them.
 - You should never share your API key with others
 - You are responsible for securing your own credentials and hosting environment
 
