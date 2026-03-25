@@ -16,7 +16,7 @@ const guildIds = DISCORD_GUILD_IDS.split(',')
 const commands = [
     new SlashCommandBuilder()
         .setName('projectx-login')
-        .setDescription('Save and verify your ProjectX credentials for this Discord account.')
+.setDescription('Save your ProjectX credentials (⚠️ read security warning after use)')
         .addStringOption(option =>
             option.setName('username').setDescription('Your ProjectX username').setRequired(true)
         )

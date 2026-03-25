@@ -3762,9 +3762,24 @@ async function handleProjectXLoginCommand(interaction: ChatInputCommandInteracti
     await getProjectXToken(interaction.user.id, { username, apiKey }, true);
     setCredentialsForDiscordUser(interaction.user.id, { username, apiKey });
 
-    await interaction.editReply(
-        '✅ Your ProjectX credentials were verified and saved to this bot.'
-    );
+    await interaction.editReply(`✅ Your ProjectX credentials were verified and saved to this bot.
+
+⚠️ **Security Notice**
+
+This bot is primarily intended for single-user use.
+
+While multiple users are supported, storing API keys for others introduces security risks. API keys may be exposed if the bot, hosting environment, or storage files are compromised.
+
+By using this command, you acknowledge:
+
+- Your API key is stored by this bot for functionality
+- The developer is not responsible for any leaked, exposed, corrupted, invalid, or "scrambled" API keys
+- You should never share your API key with others
+- You are responsible for securing your own credentials and hosting environment
+
+If you believe your API key has been compromised or is no longer working properly, regenerate it immediately from the ProjectX dashboard.
+
+Use at your own risk.`);
 }
 
 async function handleProjectXLogoutCommand(interaction: ChatInputCommandInteraction) {
