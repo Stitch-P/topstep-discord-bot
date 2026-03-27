@@ -82,6 +82,8 @@ type SavedProjectXAccount = {
 
 type ProjectXAccountStore = Record<string, SavedProjectXAccount[]>;
 
+type ProjectXLastSelectedAccountStore = Record<string, number>;
+
 type ProjectXAccount = {
     id: number;
     name: string;
@@ -292,6 +294,10 @@ const client = new Client({
 const PROJECTX_USERS_FILE = path.join(process.cwd(), 'projectx-users.json');
 const PROJECTX_TRADE_FEEDS_FILE = path.join(process.cwd(), 'projectx-trade-feeds.json');
 const PROJECTX_ACCOUNTS_FILE = path.join(process.cwd(), 'projectx-accounts.json');
+const PROJECTX_LAST_SELECTED_ACCOUNT_FILE = path.join(
+    process.cwd(),
+    'projectx-last-selected-account.json'
+);
 
 const cachedTokens = new Map<string, { value: string; expiresAt: number }>();
 const contractNameCache = new Map<string, string>();
@@ -403,6 +409,52 @@ function saveAccountsForDiscordUser(discordUserId: string, accounts: ProjectXAcc
 function getSavedAccountsForDiscordUser(discordUserId: string): SavedProjectXAccount[] {
     const store = readAccountStore();
     return store[discordUserId] ?? [];
+}
+
+function ensureLastSelectedAccountStoreFile(): void {
+    if (!fs.existsSync(PROJECTX_LAST_SELECTED_ACCOUNT_FILE)) {
+        fs.writeFileSync(PROJECTX_LAST_SELECTED_ACCOUNT_FILE, '{}', 'utf8');
+    }
+}
+
+function readLastSelectedAccountStore(): ProjectXLastSelectedAccountStore {
+    try {
+        ensureLastSelectedAccountStoreFile();
+        const raw = fs.readFileSync(PROJECTX_LAST_SELECTED_ACCOUNT_FILE, 'utf8');
+        const parsed = JSON.parse(raw) as ProjectXLastSelectedAccountStore;
+        return parsed ?? {};
+    } catch (error) {
+        console.error('Failed to read projectx-last-selected-account.json:', error);
+        return {};
+    }
+}
+
+function writeLastSelectedAccountStore(store: ProjectXLastSelectedAccountStore): void {
+    ensureLastSelectedAccountStoreFile();
+    fs.writeFileSync(
+        PROJECTX_LAST_SELECTED_ACCOUNT_FILE,
+        JSON.stringify(store, null, 2),
+        'utf8'
+    );
+}
+
+function getLastSelectedAccountForDiscordUser(discordUserId: string): number | null {
+    const store = readLastSelectedAccountStore();
+    const accountId = store[discordUserId];
+    return Number.isInteger(accountId) ? accountId : null;
+}
+
+function setLastSelectedAccountForDiscordUser(discordUserId: string, accountId: number): void {
+    const store = readLastSelectedAccountStore();
+    store[discordUserId] = accountId;
+    writeLastSelectedAccountStore(store);
+}
+
+function clearLastSelectedAccountForDiscordUser(discordUserId: string): void {
+    const store = readLastSelectedAccountStore();
+    if (!(discordUserId in store)) return;
+    delete store[discordUserId];
+    writeLastSelectedAccountStore(store);
 }
 
 // --------------------------------------------------
@@ -868,7 +920,14 @@ async function getDefaultAccountId(
     credentials: ProjectXUserCredentials
 ): Promise<number> {
     const accounts = await searchAccounts(discordUserId, credentials);
-    const account = accounts.find(a => a.canTrade !== false) ?? accounts[0];
+    const lastSelectedAccountId = getLastSelectedAccountForDiscordUser(discordUserId);
+
+    const account =
+        (lastSelectedAccountId != null
+            ? accounts.find(a => a.id === lastSelectedAccountId)
+            : null) ??
+        accounts.find(a => a.canTrade !== false) ??
+        accounts[0];
 
     if (!account) {
         throw new Error('No visible ProjectX accounts were returned.');
@@ -3669,6 +3728,7 @@ async function requireUserCredentials(
 
 async function handleAccountIdAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
     const savedAccounts = getSavedAccountsForDiscordUser(interaction.user.id);
+    const lastSelectedAccountId = getLastSelectedAccountForDiscordUser(interaction.user.id);
 
     if (!savedAccounts.length) {
         await interaction.respond([
@@ -3694,9 +3754,14 @@ async function handleAccountIdAutocomplete(interaction: AutocompleteInteraction)
                 account.name.toLowerCase().includes(focusedValue)
             );
         })
+        .sort((a, b) => {
+            const aIsDefault = a.id === lastSelectedAccountId ? 1 : 0;
+            const bIsDefault = b.id === lastSelectedAccountId ? 1 : 0;
+            return bIsDefault - aIsDefault;
+        })
         .slice(0, 25)
         .map(account => ({
-            name: `${account.name} (${account.id})${account.canTrade ? '' : ' [read-only]'}`,
+            name: `${account.name} (${account.id})${account.canTrade ? '' : ' [read-only]'}${account.id === lastSelectedAccountId ? ' [default]' : ''}`,
             value: account.id,
         }));
 
@@ -3761,6 +3826,7 @@ async function handleProjectXLoginCommand(interaction: ChatInputCommandInteracti
 
     await getProjectXToken(interaction.user.id, { username, apiKey }, true);
     setCredentialsForDiscordUser(interaction.user.id, { username, apiKey });
+    clearLastSelectedAccountForDiscordUser(interaction.user.id);
 
     await interaction.editReply(`✅ Your ProjectX credentials were verified and saved to this bot.
 
@@ -3787,6 +3853,7 @@ async function handleProjectXLogoutCommand(interaction: ChatInputCommandInteract
 
     const removed = removeCredentialsForDiscordUser(interaction.user.id);
     cachedTokens.delete(interaction.user.id);
+    clearLastSelectedAccountForDiscordUser(interaction.user.id);
 
     await interaction.editReply(
         removed
@@ -3832,9 +3899,12 @@ async function handleTradesCommand(interaction: ChatInputCommandInteraction) {
     const limit = clamp(interaction.options.getInteger('limit') ?? 5, 1, 10);
     const credentials = await requireUserCredentials(interaction);
 
-    const accountId =
-        interaction.options.getInteger('account_id') ??
-        (await getDefaultAccountId(interaction.user.id, credentials));
+    const selectedAccountId = interaction.options.getInteger('account_id');
+    if (selectedAccountId != null) {
+        setLastSelectedAccountForDiscordUser(interaction.user.id, selectedAccountId);
+    }
+
+    const accountId = selectedAccountId ?? (await getDefaultAccountId(interaction.user.id, credentials));
 
     const payload = await buildTradesPayload(
         interaction.user.id,
@@ -3855,9 +3925,12 @@ async function handleLatestTradesCommand(interaction: ChatInputCommandInteractio
     const limit = clamp(interaction.options.getInteger('limit') ?? 5, 1, 15);
     const credentials = await requireUserCredentials(interaction);
 
-    const accountId =
-        interaction.options.getInteger('account_id') ??
-        (await getDefaultAccountId(interaction.user.id, credentials));
+    const selectedAccountId = interaction.options.getInteger('account_id');
+    if (selectedAccountId != null) {
+        setLastSelectedAccountForDiscordUser(interaction.user.id, selectedAccountId);
+    }
+
+    const accountId = selectedAccountId ?? (await getDefaultAccountId(interaction.user.id, credentials));
 
     const payload = await buildLatestTradesPayload(
         interaction.user.id,
@@ -3877,9 +3950,12 @@ async function handleFuturesCommand(interaction: ChatInputCommandInteraction) {
     const limit = clamp(interaction.options.getInteger('limit') ?? 10, 1, 25);
     const credentials = await requireUserCredentials(interaction);
 
-    const accountId =
-        interaction.options.getInteger('account_id') ??
-        (await getDefaultAccountId(interaction.user.id, credentials));
+    const selectedAccountId = interaction.options.getInteger('account_id');
+    if (selectedAccountId != null) {
+        setLastSelectedAccountForDiscordUser(interaction.user.id, selectedAccountId);
+    }
+
+    const accountId = selectedAccountId ?? (await getDefaultAccountId(interaction.user.id, credentials));
 
     const payload = await buildFuturesPayload(
         interaction.user.id,
@@ -3900,9 +3976,12 @@ async function handleAnalysisCommand(interaction: ChatInputCommandInteraction) {
     const endDate = interaction.options.getString('end_date', true);
     const range = buildDateRangeInput(startDate, endDate);
 
-    const accountId =
-        interaction.options.getInteger('account_id') ??
-        (await getDefaultAccountId(interaction.user.id, credentials));
+    const selectedAccountId = interaction.options.getInteger('account_id');
+    if (selectedAccountId != null) {
+        setLastSelectedAccountForDiscordUser(interaction.user.id, selectedAccountId);
+    }
+
+    const accountId = selectedAccountId ?? (await getDefaultAccountId(interaction.user.id, credentials));
 
     const allRoundTrips = await loadRoundTripsForRange(
         interaction.user.id,
@@ -3941,9 +4020,12 @@ async function handleMonthlyCommand(interaction: ChatInputCommandInteraction) {
     const month = clamp(interaction.options.getInteger('month') ?? now.getMonth() + 1, 1, 12);
     const year = clamp(interaction.options.getInteger('year') ?? now.getFullYear(), 2020, 2100);
 
-    const accountId =
-        interaction.options.getInteger('account_id') ??
-        (await getDefaultAccountId(interaction.user.id, credentials));
+    const selectedAccountId = interaction.options.getInteger('account_id');
+    if (selectedAccountId != null) {
+        setLastSelectedAccountForDiscordUser(interaction.user.id, selectedAccountId);
+    }
+
+    const accountId = selectedAccountId ?? (await getDefaultAccountId(interaction.user.id, credentials));
 
     const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
     start.setUTCDate(start.getUTCDate() - 3);
@@ -3987,9 +4069,12 @@ async function handleTradeFeedStartCommand(interaction: ChatInputCommandInteract
 
     const credentials = await requireUserCredentials(interaction);
 
-    const accountId =
-        interaction.options.getInteger('account_id') ??
-        (await getDefaultAccountId(interaction.user.id, credentials));
+    const selectedAccountId = interaction.options.getInteger('account_id');
+    if (selectedAccountId != null) {
+        setLastSelectedAccountForDiscordUser(interaction.user.id, selectedAccountId);
+    }
+
+    const accountId = selectedAccountId ?? (await getDefaultAccountId(interaction.user.id, credentials));
 
     const existing = tradeFeeds.get(interaction.channelId);
 
@@ -4075,6 +4160,7 @@ client.on(Events.InteractionCreate, async (interaction: Interaction) => {
             const accountCommands = new Set([
                 'trades',
                 'latesttrades',
+                'futures',
                 'tradefeed-start',
                 'analysis',
                 'monthly',
@@ -4260,6 +4346,7 @@ client.once(Events.ClientReady, c => {
     console.log(`Logged in as ${c.user.tag}`);
     ensureCredentialStoreFile();
     ensureAccountStoreFile();
+    ensureLastSelectedAccountStoreFile();
     ensureTradeFeedStoreFile();
     restoreTradeFeedsFromDisk();
     console.log('✅ successfully finished startup');
