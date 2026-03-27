@@ -30,6 +30,10 @@ This public version **does not include automated trading**.
 
 - `/latesttrades` - Show latest completed trades
 
+- `/futures` - Show futures contract performance summary for a ProjectX account
+
+  <img src="https://i.imgur.com/FRlIHZs.png" width="300">
+
 - `/analysis` - Generate analytics charts from trade history  
 
   <img src="https://i.imgur.com/WzpBqvf.png" width="300">
